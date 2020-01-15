@@ -13,3 +13,6 @@ master branch
 master branch 2  
 hotfix branch  
 hotfix branch 2
+test branch  
+test branch 2  
+merge master and test
