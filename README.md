@@ -15,5 +15,8 @@ hotfix branch
 hotfix branch 2
 test branch  
 test branch 2  
-merge master and test
+merge master and test  
+master branch 3
+master branch 4
 test 3
+merge master and test
