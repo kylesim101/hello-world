@@ -18,6 +18,12 @@ test branch 2
 merge master and test  
 master branch 3
 master branch 4
+<<<<<<< HEAD
 test 3  
 merge master and test  
 master branch 5
+=======
+test 3
+merge master and test
+test 4  
+>>>>>>> test
