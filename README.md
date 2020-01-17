@@ -21,3 +21,5 @@ master branch 4
 master branch 5
 test 4  
 merge master and test  
+master 6  
+master 6 modified   
