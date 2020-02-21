@@ -1,6 +1,7 @@
 # written by kylesim
 from argparse import ArgumentParser
 # for directories of text files where the name of each directory is the name of each category and each file inside of each directory corresponds to one sample from that category
+from sklearn.preprocessing import StandardScaler
 from sklearn.datasets import load_files
 from sklearn.model_selection import train_test_split
 from sklearn.neural_network import MLPClassifier
@@ -15,6 +16,7 @@ from util_text import *
 # Multi-layer Perceptron classifier.
 # This model optimizes the log-loss function using LBFGS or stochastic gradient descent.
 
+# Multi-layer Perceptron is sensitive to feature scaling, so it is highly recommended to scale your data. For example, scale each attribute on the input vector X to [0, 1] or [-1, +1], or standardize it to have mean 0 and variance 1. Note that you must apply the same scaling to the test set for meaningful results. You can use StandardScaler for standardization.
 
 def get_param():
 	parser = ArgumentParser()
@@ -79,6 +81,10 @@ def get_param():
 	default=False, help='grid search parameters'
 	)
 	parser.add_argument(
+	'--use_scaler', action='store_true',
+	default=False, help='use scaler'
+	)
+	parser.add_argument(
 	'--debug', action='store_true',
 	default=False, help='print input parameters'
 	)
@@ -94,6 +100,7 @@ def run_grid_search():
 
 	clf_pipe = Pipeline([
 		('tfidf', TfidfVectorizer()),
+		#('scaler', StandardScaler(with_mean = False)), # for sparse mat
 		('clf', MLPClassifier())
 	])
 
@@ -140,6 +147,13 @@ def run_main():
 	X, y, y_names = clean_docs(data.data, True), data.target, data.target_names
 	vectorizer = tfidf_vectorize(X, max_features = PARAM.max_features, min_df = PARAM.min_df, max_df = PARAM.max_df, analyzer = PARAM.analyzer, ngram_range = (1, 2))
 	X_train, X_test, y_train, y_test = train_test_split(vectorizer.transform(X).toarray(), y, test_size = 0.2, random_state = 0)
+
+	# use scaler for feature scaling
+	if PARAM.use_scaler:
+		scaler = StandardScaler()
+		scaler.fit(X_train)
+		X_train = scaler.transform(X_train)
+		X_test = scaler.transform(X_test)
 
 	hls = get_hidden_layer_size(PARAM.n_layers, PARAM.hidden_size)
 	classifier = MLPClassifier(hidden_layer_sizes = hls, early_stopping = False, random_state = 0)
