@@ -1,6 +1,7 @@
 # written by kylesim
 import re
 import pickle
+from sklearn.preprocessing import StandardScaler, RobustScaler, QuantileTransformer
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, precision_score, recall_score, f1_score
 
@@ -66,6 +67,21 @@ def tfidf_vectorize(docs, max_features = 30000, min_df = 1, max_df = 1.0, analyz
 	#vocab = vectorizer.vocabulary_
 	#idf = vectorizer.idf_
 	return vectorizer
+
+
+def get_scaler(use_scaler, X):
+	if use_scaler == 1:
+		scaler = StandardScaler().fit(X)
+		# z = (x - u) / s
+	elif use_scaler == 2:
+		scaler = RobustScaler().fit(X)
+		# robust to outliers (mean -> median,  sd -> IQR)
+	elif use_scaler == 3:
+		scaler = QuantileTransformer(output_distribution='normal').fit(X)
+		# map data to normal distribution
+	else:
+		scaler = None
+	return scaler
 
 
 def get_accuracy(y_test, y_pred):

@@ -62,28 +62,31 @@ if __name__ == '__main__':
 		model_map = load_model_map(PARAM.model_path)
 		if PARAM.debug:
 			print_model_map(model_map)
+		scaler = model_map.get('scaler', None)
 		vectorizer = model_map.get('vectorizer', None)
 		classifier = model_map.get('classifier', None)
 	else:
 		raise ValueError('model_path not set')
 
-	if PARAM.action == 'batch' or PARAM.action == 'accuracy':
-		data = load_files(PARAM.data_path, encoding="utf-8")
-		X_word, y, y_names = clean_docs(data.data, True), data.target, data.target_names
+	data = load_files(PARAM.data_path, encoding="utf-8")
+	X_word, y, y_names = clean_docs(data.data, True), data.target, data.target_names
 
-		if vectorizer:
-			X = vectorizer.transform(X_word).toarray()
-		else:
-			X = X_word
-		pred_labels = classifier.predict(X)
+	if vectorizer:
+		X = vectorizer.transform(X_word).toarray()
+		if scaler:
+			X = scaler.transform(X)
+	else:
+		# [vectorizer, scaler, classifier] in pipeline
+		X = X_word
+	pred_labels = classifier.predict(X)
 
-		if PARAM.action == 'batch':
-			if PARAM.print_y:
-				print_result(X_word, y, pred_labels)
-			else:
-				print_result(X_word, None, pred_labels)
+	if PARAM.action == 'batch':
+		if PARAM.print_y:
+			print_result(X_word, y, pred_labels)
 		else:
-			accuracy = accuracy_score(y, pred_labels)
-			print("# Accuracy: {}".format(accuracy))
+			print_result(X_word, None, pred_labels)
+	elif PARAM.action == 'accuracy':
+		accuracy = accuracy_score(y, pred_labels)
+		print("# Accuracy: {}".format(accuracy))
 	else:
 		raise ValueError('unknown action')

@@ -1,7 +1,7 @@
 # written by kylesim
 from argparse import ArgumentParser
 # for directories of text files where the name of each directory is the name of each category and each file inside of each directory corresponds to one sample from that category
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, RobustScaler, QuantileTransformer
 from sklearn.datasets import load_files
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -12,17 +12,23 @@ from util_text import *
 
 # https://scikit-learn.org/stable/auto_examples/classification/plot_classifier_comparison.html
 # https://scikit-learn.org/stable/modules/sgd.html
+# https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.SGDClassifier.html
+
+# ----- guideline -----
+# 'hinge': linear SVM
+# 'log': Logistic Regression
+# 'modified_huber': smoothed hinge loss
+# 'perceptron': perceptron
 
 # Stochastic Gradient Descent is sensitive to feature scaling, so it is highly recommended to scale your data. For example, scale each attribute on the input vector X to [0,1] or [-1,+1], or standardize it to have mean 0 and variance 1. Note that the same scaling must be applied to the test vector to obtain meaningful results. This can be easily done using StandardScaler:
 
 # If your attributes have an intrinsic scale (e.g. word frequencies or indicator features) scaling is not needed.
+# -> sometimes scaling does not improve performance
 
 # Empirically, we found that SGD converges after observing approx. 10^6 training samples. Thus, a reasonable first guess for the number of iterations is max_iter = np.ceil(10**6 / n), where n is the size of the training set.
 
 # Linear classifiers (SVM, logistic regression, a.o.) with SGD training.
-# 'hinge': linear SVM, 'log': Logistic Regression
-# 'modified_huber': smoothed hinge loss
-# 'perceptron': perceptron
+
 
 def get_param():
 	parser = ArgumentParser()
@@ -40,7 +46,7 @@ def get_param():
 	)
 	parser.add_argument(
 	'--n_gram', type=int,
-	default=1, help='1 for (1, 1), 2 for (1, 2)'
+	default=2, help='1 for (1, 1), 2 for (1, 2)'
 	)
 	parser.add_argument(
 	'--max_features', type=int,
@@ -67,12 +73,12 @@ def get_param():
 	default='', help='path to save trained model'
 	)
 	parser.add_argument(
-	'--grid_search', action='store_true',
-	default=False, help='grid search parameters'
+	'--use_scaler', type=int,
+	default=0, help='( 0 | 1 | 2 | 3 ) -> 0: no scaler'
 	)
 	parser.add_argument(
-	'--use_scaler', action='store_true',
-	default=False, help='use scaler'
+	'--grid_search', action='store_true',
+	default=False, help='grid search parameters'
 	)
 	parser.add_argument(
 	'--debug', action='store_true',
@@ -90,7 +96,9 @@ def run_grid_search():
 
 	clf_pipe = Pipeline([
 		('tfidf', TfidfVectorizer()),
-		#('scaler', StandardScaler(with_mean = False)), # for sparse mat
+		#('scaler', StandardScaler(with_mean=False)),
+		#('scaler', QuantileTransformer(output_distribution='normal')),
+		# -> sometimes scaling does not improve performance
 		('clf', SGDClassifier(alpha = 0.0001, tol = 0.0001))
 	])
 
@@ -109,7 +117,7 @@ def run_grid_search():
 	classifier = classifier.fit(X, y)
 
 	print("")
-	print("# Classifier: %s" % (classifier.best_params_['clf__loss']))
+	print("# Classifier: %s" % ("sgd_%s" % (classifier.best_params_['clf__loss'])))
 	print("best score: %.3f\n" % (classifier.best_score_))
 	print("# Best Parameters")
 	for param in sorted(gs_params.keys()):
@@ -118,8 +126,9 @@ def run_grid_search():
 
 	if PARAM.model_path:
 		model_map = {}
-		model_map['clf_name'] = classifier.best_params_['clf__loss']
+		model_map['clf_name'] = "sgd_%s" % (classifier.best_params_['clf__loss'])
 		model_map['accuracy'] = classifier.best_score_
+		model_map['scaler'] = None
 		model_map['vectorizer'] = None
 		model_map['classifier'] = classifier
 		save_model_map(model_map, PARAM.model_path)
@@ -137,9 +146,8 @@ def run_main():
 	X_train, X_test, y_train, y_test = train_test_split(vectorizer.transform(X).toarray(), y, test_size = 0.2, random_state = 0)
 
 	# use scaler for feature scaling
-	if PARAM.use_scaler:
-		scaler = StandardScaler()
-		scaler.fit(X_train)
+	scaler = get_scaler(PARAM.use_scaler, X_train)
+	if scaler:
 		X_train = scaler.transform(X_train)
 		X_test = scaler.transform(X_test)
 
@@ -158,8 +166,9 @@ def run_main():
 	print_eval(y_test, y_pred)
 	if PARAM.model_path:
 		model_map = {}
-		model_map['clf_name'] = PARAM.loss
+		model_map['clf_name'] = "sgd_%s" (PARAM.loss)
 		model_map['accuracy'] = get_accuracy(y_test, y_pred)
+		model_map['scaler'] = scaler
 		model_map['vectorizer'] = vectorizer
 		model_map['classifier'] = classifier
 		save_model_map(model_map, PARAM.model_path)

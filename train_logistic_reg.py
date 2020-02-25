@@ -4,19 +4,35 @@ from argparse import ArgumentParser
 from sklearn.preprocessing import StandardScaler, RobustScaler, QuantileTransformer
 from sklearn.datasets import load_files
 from sklearn.model_selection import train_test_split
-from sklearn.neural_network import MLPClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import GridSearchCV
 from sklearn.pipeline import Pipeline
 from util_text import *
 
 # https://scikit-learn.org/stable/auto_examples/classification/plot_classifier_comparison.html
-# https://scikit-learn.org/stable/modules/neural_networks_supervised.html#classification
-# https://scikit-learn.org/stable/modules/generated/sklearn.neural_network.MLPClassifier.html
+# https://scikit-learn.org/stable/modules/linear_model.html#logistic-regression
+# https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.LogisticRegression.html
 
-# Multi-layer Perceptron classifier.
-# This model optimizes the log-loss function using LBFGS or stochastic gradient descent.
+# ----- guideline -----
+# liblinear -> small datasets (fast, binary)
+# sag -> large datasets (fast, multinomial)
+# saga -> sparse & large datasets (multinomial)
+# lbfgs -> small datasets (multinomial)
 
-# Multi-layer Perceptron is sensitive to feature scaling, so it is highly recommended to scale your data. For example, scale each attribute on the input vector X to [0, 1] or [-1, +1], or standardize it to have mean 0 and variance 1. Note that you must apply the same scaling to the test set for meaningful results. You can use StandardScaler for standardization.
+# Logistic regression, despite its name, is a linear model for classification rather than regression. Logistic regression is also known in the literature as logit regression, maximum-entropy classification (MaxEnt) or the log-linear classifier. In this model, the probabilities describing the possible outcomes of a single trial are modeled using a logistic function.
+
+# The solvers implemented in the class LogisticRegression are "liblinear", "newton-cg", "lbfgs", "sag" and "saga":
+
+# The solver "liblinear" uses a coordinate descent (CD) algorithm, and relies on the excellent C++ LIBLINEAR library, which is shipped with scikit-learn. However, the CD algorithm implemented in liblinear cannot learn a true multinomial (multiclass) model; instead, the optimization problem is decomposed in a "one-vs-rest" fashion so separate binary classifiers are trained for all classes.
+
+# The "lbfgs", "sag" and "newton-cg" solvers only support l2 regularization or no regularization, and are found to converge faster for some high-dimensional data. Setting multi_class to "multinomial" with these solvers learns a true multinomial logistic regression model, which means that its probability estimates should be better calibrated than the default "one-vs-rest" setting.
+
+# The "sag" solver uses Stochastic Average Gradient descent. It is faster than other solvers for large datasets, when both the number of samples and the number of features are large.
+
+# The "saga" solver is a variant of "sag" that also supports the non-smooth penalty="l1". This is therefore the solver of choice for sparse multinomial logistic regression. It is also the only solver that supports penalty="elasticnet".
+
+# The "lbfgs" is an optimization algorithm that approximates the Broyden–Fletcher–Goldfarb–Shanno algorithm, which belongs to quasi-Newton methods. The "lbfgs" solver is recommended for use for small data-sets but for larger datasets its performance suffers.
+
 
 def get_param():
 	parser = ArgumentParser()
@@ -25,36 +41,24 @@ def get_param():
 	default='./data/txt_sentoken', help='input data path'
 	)
 	parser.add_argument(
-	'--hidden_size', type=int,
-	default=100, help='hidden layer size'
-	)
-	parser.add_argument(
-	'--n_layers', type=int,
-	default=2, help='number of hidden layers'
-	)
-	parser.add_argument(
-	'--activation', type=str,
-	default='relu', help='( logistic | tanh | relu )'
-	)
-	parser.add_argument(
 	'--solver', type=str,
-	default='adam', help='( lbfgs | sgd | adam )'
+	default='sag', help='( sag | saga | lbfgs | liblinear )'
 	)
 	parser.add_argument(
-	'--lr_schedule', type=str,
-	default='constant', help='( constant | invscaling | adaptive )'
+	'--multi_class', type=str,
+	default='auto', help='( auto | ovr | multinomial )'
 	)
 	parser.add_argument(
-	'--lr_init', type=float,
-	default=0.001, help='initial learning rate'
+	'--penalty', type=str,
+	default='l2', help='( l1 | l2 | elasticnet )'
+	)
+	parser.add_argument(
+	'-C', '--c_strength', type=float,
+	default=1.0, help='inverse of regularization strength (smaller values specify stronger regularization)'
 	)
 	parser.add_argument(
 	'--max_iter', type=int,
-	default=100, help='maximum number of iterations'
-	)
-	parser.add_argument(
-	'--batch_size', type=int,
-	default=100, help='size of minibatches for stochastic optimizers'
+	default=1000, help='max number of iterations to be run'
 	)
 	parser.add_argument(
 	'--max_features', type=int,
@@ -101,7 +105,7 @@ def run_grid_search():
 	clf_pipe = Pipeline([
 		('tfidf', TfidfVectorizer()),
 		('scaler', QuantileTransformer(output_distribution='normal')),
-		('clf', MLPClassifier())
+		('clf', LogisticRegression())
 	])
 
 	gs_params = {
@@ -110,18 +114,18 @@ def run_grid_search():
 	'tfidf__max_df': [0.7],
 	'tfidf__ngram_range': [(1, 2)],
 	'tfidf__analyzer': ['word'],
-	#'clf__hidden_layer_sizes': [(100,), (100, 100)],
-	'clf__hidden_layer_sizes': [(100, 100)],
-	'clf__max_iter': [100, 200],
-	#'clf__learning_rate': ['invscaling', 'adaptive'],
-	#'clf__activation': ['logistic', 'relu'],
+	'clf__max_iter': [1000],
+	'clf__solver': ['lbfgs'],
+	'clf__C': [1.0, 10.0],
+	#'clf__C': [1.0, 0.1, 10.0],
+	#'clf__solver': ['sag', 'liblinear', 'lbfgs'],
 	}
 
 	classifier = GridSearchCV(clf_pipe, cv = 5, param_grid = gs_params, verbose = 1)
 	classifier = classifier.fit(X, y)
 
 	print("")
-	print("# Classifier: %s" % ("mlp"))
+	print("# Classifier: %s" % ("logreg_%s" % (classifier.best_params_['clf__solver'])))
 	print("best score: %.3f\n" % (classifier.best_score_))
 	print("# Best Parameters")
 	for param in sorted(gs_params.keys()):
@@ -130,17 +134,12 @@ def run_grid_search():
 
 	if PARAM.model_path:
 		model_map = {}
-		model_map['clf_name'] = "mlp"
+		model_map['clf_name'] = "logreg_%s" % (classifier.best_params_['clf__solver'])
 		model_map['accuracy'] = classifier.best_score_
 		model_map['scaler'] = None
 		model_map['vectorizer'] = None
 		model_map['classifier'] = classifier
 		save_model_map(model_map, PARAM.model_path)
-
-
-def get_hidden_layer_size(n_layers, hidden_size):
-	hls = tuple([hidden_size] * n_layers)
-	return hls
 
 
 def run_main():
@@ -155,15 +154,14 @@ def run_main():
 		X_train = scaler.transform(X_train)
 		X_test = scaler.transform(X_test)
 
-	hls = get_hidden_layer_size(PARAM.n_layers, PARAM.hidden_size)
-	classifier = MLPClassifier(hidden_layer_sizes = hls, early_stopping = False, random_state = 0)
+	classifier = LogisticRegression(C = PARAM.c_strength, solver = PARAM.solver, penalty = PARAM.penalty, multi_class = PARAM.multi_class, max_iter = PARAM.max_iter, tol = 0.0001, random_state = 0)
 	classifier.fit(X_train, y_train)
 	y_pred = classifier.predict(X_test)
 
 	print_eval(y_test, y_pred)
 	if PARAM.model_path:
 		model_map = {}
-		model_map['clf_name'] = "mlp"
+		model_map['clf_name'] = "logreg_%s" % (PARAM.solver)
 		model_map['accuracy'] = get_accuracy(y_test, y_pred)
 		model_map['scaler'] = scaler
 		model_map['vectorizer'] = vectorizer
